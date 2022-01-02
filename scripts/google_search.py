@@ -43,6 +43,7 @@ def get_image_urls(wd: webdriver, delay: int, max_images: int, search_params: di
         thumbnails = wd.find_elements(By.CLASS_NAME, "Q4LuWd")
 
         for img in thumbnails[len(image_urls) + skips : max_images]:
+
             try:
                 img.click()
                 time.sleep(delay)
@@ -52,6 +53,8 @@ def get_image_urls(wd: webdriver, delay: int, max_images: int, search_params: di
             # source image url identified by the html class "n3VNCb"
             images = wd.find_elements(By.CLASS_NAME, "n3VNCb")
             for image in images:
+                if len(image_urls) + skips >= max_images:
+                    break
 
                 if image.get_attribute('src') in image_urls:
                     max_images += 1
@@ -125,6 +128,6 @@ if __name__ == "__main__":
     ]
 
     df = get_pixel_arrays(wd, delay, max_images, queries)
-    pickle_df(df, ".\\data\\raw_img_arrays.pickle")
+    pickle_df(df, "../data/raw_img_arrays.pickle")
 
     wd.quit()

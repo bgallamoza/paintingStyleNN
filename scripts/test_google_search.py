@@ -59,12 +59,26 @@ class Test_GoogleSearch(unittest.TestCase):
 
         wd.quit()
 
+    def test_get_image_urls_3(self):
+        PATH = ".\\scripts\\drivers\\chromedriver.exe"
+        wd = webdriver.Chrome(PATH)
+        search_params = {"q":"dog","tbm":"isch"}
+        delay = 1
+        max_images = 200
+        err_msg_1 = "ERROR: Incorrect url_list size"
+
+        url_list = get_image_urls(wd, delay, max_images, search_params)
+
+        self.assertEqual(200, len(url_list), err_msg_1)
+
+        wd.quit()
+
     def test_url_to_img(self):
         url = 'https://i.guim.co.uk/img/media/fe1e34da640c5c56ed16f76ce6f994fa9343d09d/0_174_3408_2046/master/3408.jpg?width=1200&height=1200&quality=85&auto=format&fit=crop&s=67773a9d419786091c958b2ad08eae5e'
         img_1 = url_to_img(url)
         img_1.show()
 
-    def img_to_array(self):
+    def test_img_to_array(self):
         url = 'https://i.guim.co.uk/img/media/fe1e34da640c5c56ed16f76ce6f994fa9343d09d/0_174_3408_2046/master/3408.jpg?width=1200&height=1200&quality=85&auto=format&fit=crop&s=67773a9d419786091c958b2ad08eae5e'
         arr = img_to_array(url_to_img(url))
         self.assertEqual(arr.shape, (1200, 1200, 3))
