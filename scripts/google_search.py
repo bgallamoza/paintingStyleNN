@@ -5,6 +5,7 @@
 '''
 
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.by import By
 import requests as re
 import io
@@ -13,6 +14,7 @@ import time
 import numpy as np
 import pandas as pd
 import gzip, pickletools, pickle
+import os
 
 def generate_url(search_params: dict) -> str:
     """Takes dict of search parameters and returns a url"""
@@ -49,22 +51,27 @@ def get_image_urls(wd: webdriver, delay: int, max_images: int, search_params: di
                 time.sleep(delay)
             except:
                 continue
+            
+            try:
+                # source image url identified by the html class "n3VNCb"
+                images = wd.find_elements(By.CLASS_NAME, "n3VNCb")
+                for image in images:
+                    if len(image_urls) + skips >= max_images:
+                        break
 
-            # source image url identified by the html class "n3VNCb"
-            images = wd.find_elements(By.CLASS_NAME, "n3VNCb")
-            for image in images:
-                if len(image_urls) + skips >= max_images:
-                    break
-
-                if image.get_attribute('src') in image_urls:
-                    max_images += 1
-                    skips += 1
-                    break
-                
-                # url contained in the 'src' attribute
-                if image.get_attribute('src') and 'http' in image.get_attribute('src'):
-                    image_urls.add(image.get_attribute('src'))
-                    print(f"Found {len(image_urls)}")
+                    if image.get_attribute('src') in image_urls:
+                        print("dupe")
+                        max_images += 1
+                        skips += 1
+                        break
+                    
+                    # url contained in the 'src' attribute
+                    if image.get_attribute('src') and 'http' in image.get_attribute('src'):
+                            image_urls.add(image.get_attribute('src'))
+                            print(f"Found {len(image_urls)}")
+            except Exception as e:
+                print("Error:  ", e)
+                continue
 
     return list(image_urls)
 
@@ -83,19 +90,43 @@ def img_to_array(img: Image) -> np.array:
     if img is None: return None
     else: return np.asarray(img)
 
-def get_pixel_arrays(wd: webdriver, delay: int, max_images: int, queries: list) -> pd.DataFrame:
+def get_pixel_arrays(path: str) -> pd.DataFrame:
     df = pd.DataFrame(columns=['data', 'label'])
 
+    for filename in os.listdir(path):
+        f = os.path.join(path, filename)
+        if os.path.isfile(f):
+            try:
+                for i, c in enumerate(filename):
+                    if c.isdigit():
+                        filename = filename[:i]
+                        break
+                img = Image.open(f)
+                arr = img_to_array(img)
+                df2 = pd.Series([arr, filename], index=df.columns)
+                df = df.append(df2, ignore_index=True)
+            except Exception as e:
+                print("Error: ", f, e)
+
+    return df
+
+def download_img(path: str, img: Image):
+    try:
+        with open(path, "wb") as f:
+            img.save(f, "JPEG")
+
+        print(f"Image saved at {path}")
+    except Exception as e:
+        print(f"Download failed: ", e)
+
+def get_images(wd: webdriver, delay: int, max_images: int, queries: list, path: str):
     for q in queries:
         search_params = {"q":q,"tbm":"isch"}
         url_list = get_image_urls(wd, delay, max_images, search_params)
-        for url in url_list:
+        q = q.replace(" ", "_")
+        for count, url in enumerate(url_list):
             img = url_to_img(url)
-            arr = img_to_array(img)
-            df2 = pd.Series([arr, q], index=df.columns)
-            df = df.append(df2, ignore_index=True)
-
-    return df
+            download_img(path + q + str(count) + ".jpg", img)
 
 def pickle_df(df: pd.DataFrame, path: str):
     # The output of a regular pickle.dump for our random forest is quite large,
@@ -108,26 +139,35 @@ def pickle_df(df: pd.DataFrame, path: str):
     print(f">>> DataFrame successfully saved to \"{path}\" directory. <<<")
 
 if __name__ == "__main__":
-    PATH = ".\\scripts\\drivers\\chromedriver.exe"
-    wd = webdriver.Chrome(PATH)
-    delay = 1
-    max_images = 100
-    search_params = {}
-    queries = [
-        "Impressionism Painting",
-        "Romanticism Painting",
-        "Expressionism Painting",
-        "Post Impressionism Painting",
-        "Surrealism Painting",
-        "Baroque Painting",
-        "Symbolism Painting",
-        "Neoclassicism Painting",
-        "Rococo Painting",
-        "Cubism Painting",
-        "Northern Renaissance Painting"
-    ]
+    make_dataset = True
 
-    df = get_pixel_arrays(wd, delay, max_images, queries)
-    pickle_df(df, "../data/raw_img_arrays.pickle")
-
-    wd.quit()
+    if make_dataset:
+        df = get_pixel_arrays(".\\data\\imgs")
+        pickle_df(df, "./data/raw_img_arrays.pickle")
+    else:
+        PATH = ".\\scripts\\drivers\\chromedriver.exe"
+        # op = webdriver.ChromeOptions()
+        # op.add_argument("--headless")
+        # op.add_argument("--disable-gpu")
+        wd = webdriver.Chrome(
+            PATH,
+            # chrome_options=op
+            )
+        delay = 1
+        max_images = 100
+        search_params = {}
+        queries = [
+            "Impressionism Painting",
+            "Romanticism Painting",
+            "Expressionism Painting",
+            "Post Impressionism Painting",
+            "Surrealism Painting",
+            "Baroque Painting",
+            "Symbolism Painting",
+            "Neoclassicism Painting",
+            "Rococo Painting",
+            "Cubism Painting",
+            "Northern Renaissance Painting"
+        ]
+        get_images(wd, delay, max_images, queries, "./data/imgs/")
+        wd.quit()
